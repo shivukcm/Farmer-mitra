@@ -1,0 +1,1043 @@
+{% raw %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farmer Mitra - Smart Crop Recommendations</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body className="bg-slate-900 text-gray-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function App() {
+            const [currentPage, setCurrentPage] = useState('home');
+            const [sidebarOpen, setSidebarOpen] = useState(true);
+
+            return (
+                <div className="flex h-screen bg-slate-900">
+                    {/* Sidebar */}
+                    <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-800 border-r border-slate-700 transition-all duration-300 flex flex-col`}>
+                        <div className="p-4 border-b border-slate-700">
+                            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-2xl text-emerald-400">
+                                ☰
+                            </button>
+                        </div>
+                        <nav className="flex-1 p-4 space-y-2">
+                            {[
+                                { id: 'home', label: '🏠 Home', icon: '🏠' },
+                                { id: 'analytics', label: '📊 Analytics', icon: '📊' },
+                                { id: 'market', label: '💹 Market', icon: '💹' },
+                                { id: 'about', label: 'ℹ️ About', icon: 'ℹ️' }
+                            ].map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => setCurrentPage(item.id)}
+                                    className={`w-full text-left px-4 py-2 rounded-lg transition ${currentPage === item.id
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'text-gray-300 hover:bg-slate-700'
+                                        }`}
+                                >
+                                    {sidebarOpen ? item.label : item.icon}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="flex-1 flex flex-col">
+                        {/* Top Bar */}
+                        <div className="bg-gradient-to-r from-emerald-600 to-cyan-600 px-8 py-4 shadow-lg">
+                            <h1 className="text-3xl font-bold text-white">🌾 Farmer Mitra</h1>
+                        </div>
+
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-auto">
+                            {currentPage === 'home' && <HomePage />}
+                            {currentPage === 'analytics' && <AnalyticsPage />}
+                            {currentPage === 'market' && <MarketPage />}
+                            {currentPage === 'about' && <AboutPage />}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-slate-800 border-t border-slate-700 px-8 py-4 text-center text-gray-400">
+                            <p>© 2026 Farmer Mitra - Smart Agriculture Solutions</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // HOME PAGE
+        function HomePage() {
+            const [form, setForm] = useState({
+                district: 'Bishnupur',
+                pH: 6.5,
+                N: 300,
+                P: 50,
+                K: 200,
+                season: 'Kharif'
+            });
+            const [recommendations, setRecommendations] = useState([]);
+            const [isRecommending, setIsRecommending] = useState(false);
+            const [analyticsData, setAnalyticsData] = useState(null);
+            const [analyticsLoading, setAnalyticsLoading] = useState(false);
+            const chartRef = useRef(null);
+
+            // Analytics Modal State
+
+
+            const handleRecommend = async () => {
+                setIsRecommending(true);
+                try {
+                    const response = await fetch('/recommend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(form)
+                    });
+                    const data = await response.json();
+                    setRecommendations(data.recommendations || []);
+                } catch (err) {
+                    console.error('Error:', err);
+                    alert('Failed to get recommendations');
+                }
+                setIsRecommending(false);
+            };
+
+            useEffect(() => {
+                if (analyticsData && analyticsData.price_history && analyticsData.price_history.chart) {
+                    const timer = setTimeout(() => {
+                        const chartData = analyticsData.price_history.chart;
+                        if (chartData.length === 0) return;
+
+                        const canvas = document.getElementById('priceChart');
+                        if (!canvas) return;
+
+                        if (chartRef.current) {
+                            chartRef.current.destroy();
+                        }
+
+                        const ctx = canvas.getContext('2d');
+                        chartRef.current = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: chartData.map(p => p.date),
+                                datasets: [{
+                                    label: 'Avg Price (Rs/Quintal)',
+                                    data: chartData.map(p => p.price),
+                                    borderColor: '#10b981',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    borderWidth: 2,
+                                    fill: true,
+                                    tension: 0.3
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        grid: { color: '#334155' },
+                                        ticks: {
+                                            color: '#94a3b8',
+                                            callback: (value) => '₹' + value.toLocaleString()
+                                        }
+                                    },
+                                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                                },
+                                plugins: {
+                                    legend: { labels: { color: '#e2e8f0' } },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: (context) => `Price: ₹${context.raw.toLocaleString()}`
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }, 200);
+                    return () => clearTimeout(timer);
+                }
+            }, [analyticsData]);
+
+            const fetchAnalytics = async (crop) => {
+                setAnalyticsLoading(true);
+                try {
+                    const response = await fetch('/crop_details_extended', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ crop: crop })
+                    });
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        console.log('Analytics Data:', result);
+                        setAnalyticsData(result);
+                    } else {
+                        alert('Error loading analytics');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Failed to load analytics');
+                }
+                setAnalyticsLoading(false);
+            };
+
+            return (
+                <div className="p-8 max-w-7xl mx-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Input Form */}
+                        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                            <h2 className="text-2xl font-bold text-emerald-400 mb-6">Soil Parameters</h2>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">District</label>
+                                    <select
+                                        value={form.district}
+                                        onChange={(e) => setForm({ ...form, district: e.target.value })}
+                                        className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white"
+                                    >
+                                        {['Bishnupur', 'Imphal East', 'Imphal West', 'Thoubal', 'Ukhrul', 'Churachandpur', 'Senapati', 'Tamenglong', 'Kakching'].map(d => (
+                                            <option key={d} value={d}>{d}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">Season</label>
+                                    <select
+                                        value={form.season}
+                                        onChange={(e) => setForm({ ...form, season: e.target.value })}
+                                        className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-2 text-white"
+                                    >
+                                        <option>Kharif</option>
+                                        <option>Rabi</option>
+                                        <option>Summer</option>
+                                        <option>Winter</option>
+                                        <option>Autumn</option>
+                                        <option>Whole Year</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">pH Level: {form.pH}</label>
+                                    <input
+                                        type="range"
+                                        min="4" max="9" step="0.1"
+                                        value={form.pH}
+                                        onChange={(e) => setForm({ ...form, pH: parseFloat(e.target.value) })}
+                                        className="w-full"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">Nitrogen (N): {form.N} ppm</label>
+                                    <input
+                                        type="range"
+                                        min="0" max="600" step="10"
+                                        value={form.N}
+                                        onChange={(e) => setForm({ ...form, N: parseInt(e.target.value) })}
+                                        className="w-full"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">Phosphorus (P): {form.P} ppm</label>
+                                    <input
+                                        type="range"
+                                        min="0" max="150" step="5"
+                                        value={form.P}
+                                        onChange={(e) => setForm({ ...form, P: parseInt(e.target.value) })}
+                                        className="w-full"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm text-gray-300 mb-1">Potassium (K): {form.K} ppm</label>
+                                    <input
+                                        type="range"
+                                        min="0" max="600" step="10"
+                                        value={form.K}
+                                        onChange={(e) => setForm({ ...form, K: parseInt(e.target.value) })}
+                                        className="w-full"
+                                    />
+                                </div>
+
+                                <button
+                                    onClick={handleRecommend}
+                                    disabled={isRecommending}
+                                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 text-white font-bold py-3 rounded-lg transition"
+                                >
+                                    {isRecommending ? '⏳ Analyzing...' : '🚀 Get Recommendations'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Recommendations */}
+                        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 overflow-y-auto max-h-[800px]">
+                            <h2 className="text-2xl font-bold text-cyan-400 mb-4">Top Recommendations</h2>
+                            {recommendations.length === 0 ? (
+                                <p className="text-gray-400">Set soil parameters and click "Get Recommendations"</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {recommendations.map((rec, i) => (
+                                        <div key={i} className={`bg-slate-700 rounded-lg p-4 border-l-4 flex flex-col shadow-md ${
+                                            rec.confidence >= 80 ? 'border-emerald-500' : 
+                                            rec.confidence >= 60 ? 'border-amber-500' : 'border-rose-500'
+                                        }`}>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="font-bold text-lg text-white">#{i + 1} {rec.crop}</span>
+                                                <div className="flex flex-col items-end">
+                                                    <span className={`text-sm font-black ${
+                                                        rec.confidence >= 80 ? 'text-emerald-400' : 
+                                                        rec.confidence >= 60 ? 'text-amber-400' : 'text-rose-400'
+                                                    }`}>
+                                                        Score: {rec.confidence?.toFixed(1)}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 uppercase tracking-wide">DYMRA-CCI</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex gap-2 mb-2 flex-wrap">
+                                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                                                    rec.level === 'Extremely High' || rec.level === 'High' ? 'bg-emerald-500/20 text-emerald-300' :
+                                                    rec.level === 'Moderately Strong' || rec.level === 'Moderate' ? 'bg-amber-500/20 text-amber-300' :
+                                                    'bg-rose-500/20 text-rose-300'
+                                                }`}>
+                                                    {rec.level} Confidence
+                                                </span>
+                                                <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-blue-500/20 text-blue-300">
+                                                    {rec.recommendation_text}
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="bg-slate-800/50 rounded p-2 mt-1 mb-3">
+                                                <p className="text-gray-300 text-xs leading-relaxed">
+                                                    <span className="text-gray-500 font-semibold uppercase text-[10px] block mb-1">Key Factors:</span>
+                                                    {rec.reason}
+                                                </p>
+                                            </div>
+                                            
+                                            <button
+                                                onClick={() => fetchAnalytics(rec.crop)}
+                                                className="text-xs bg-slate-600 hover:bg-slate-500 text-white px-3 py-1.5 rounded w-max transition flex items-center font-semibold"
+                                                disabled={analyticsLoading}
+                                            >
+                                                {analyticsLoading ? '⏳ Loading...' : '📊 View Market Analytics'}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Analytics Modal */}
+                    {analyticsData && (
+                        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                            <div className="bg-slate-800 rounded-xl border border-slate-600 w-full max-w-5xl max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl">
+                                <div className="sticky top-0 bg-slate-800/95 backdrop-blur border-b border-slate-700 p-6 flex justify-between items-center z-10">
+                                    <h2 className="text-3xl font-bold text-emerald-400">{analyticsData.crop} Full Analytics</h2>
+                                    <button
+                                        onClick={() => setAnalyticsData(null)}
+                                        className="text-gray-400 hover:text-white bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded transition"
+                                    >
+                                        ✕ Close
+                                    </button>
+                                </div>
+
+                                <div className="p-6 space-y-8">
+                                    {/* Integrated Analytics Dashboard */}
+                                    <div className="bg-slate-700/30 p-6 rounded-2xl border border-slate-600 shadow-inner">
+                                        <h3 className="text-xl font-bold text-emerald-400 mb-6 flex items-center gap-2">
+                                            📊 Market Analytics Dashboard
+                                        </h3>
+
+                                        {/* Statistical Highlight Boxes */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                                            {/* Yield Group */}
+                                            <div className="bg-slate-800/60 p-4 rounded-2xl border border-emerald-500/20 shadow-lg group hover:border-emerald-500/40 transition-all">
+                                                <div className="text-[10px] text-emerald-400 uppercase font-bold mb-3 tracking-widest flex justify-between">
+                                                    <span>🌾 Crop Yield</span>
+                                                    <span>T/Ha</span>
+                                                </div>
+                                                <div className="flex justify-between items-end">
+                                                    <div>
+                                                        <div className="text-[9px] text-gray-500 uppercase font-bold">Average</div>
+                                                        <div className="text-2xl font-black text-white">{(analyticsData.yield.avg || 0).toFixed(2)}</div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-[9px] text-gray-500 uppercase font-bold">Max / Min</div>
+                                                        <div className="text-sm font-bold flex gap-2 justify-end">
+                                                            <span className="text-cyan-400">{(analyticsData.yield.max || 0).toFixed(1)}</span>
+                                                            <span className="text-gray-600">|</span>
+                                                            <span className="text-rose-400">{(analyticsData.yield.min || 0).toFixed(1)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Price Group */}
+                                            <div className="bg-slate-800/60 p-4 rounded-2xl border border-cyan-500/20 shadow-lg group hover:border-cyan-500/40 transition-all">
+                                                <div className="text-[10px] text-cyan-400 uppercase font-bold mb-3 tracking-widest flex justify-between">
+                                                    <span>💰 Market Price</span>
+                                                    <span>Rs/Q</span>
+                                                </div>
+                                                <div className="flex justify-between items-end">
+                                                    <div>
+                                                        <div className="text-[9px] text-gray-500 uppercase font-bold">Average</div>
+                                                        <div className="text-2xl font-black text-white">₹{(analyticsData.market.avg_price || 0).toLocaleString()}</div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-[9px] text-gray-500 uppercase font-bold">Max / Min</div>
+                                                        <div className="text-sm font-bold flex gap-2 justify-end">
+                                                            <span className="text-cyan-400">₹{(Math.max(...(analyticsData.market.price_range || [0]))).toLocaleString()}</span>
+                                                            <span className="text-gray-600">|</span>
+                                                            <span className="text-rose-400">₹{(Math.min(...(analyticsData.market.price_range || [0]))).toLocaleString()}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Price/Tonne Group */}
+                                            <div className="bg-slate-800/60 p-4 rounded-2xl border border-blue-500/20 shadow-lg group hover:border-blue-500/40 transition-all">
+                                                <div className="text-[10px] text-blue-400 uppercase font-bold mb-3 tracking-widest flex justify-between">
+                                                    <span>🏭 Price Per Tonne</span>
+                                                    <span>Rs/T</span>
+                                                </div>
+                                                <div className="flex justify-between items-end">
+                                                    <div>
+                                                        <div className="text-[9px] text-gray-500 uppercase font-bold">Average</div>
+                                                        <div className="text-2xl font-black text-white">₹{(analyticsData.market.price_tonne || 0).toLocaleString()}</div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-[9px] text-gray-500 uppercase font-bold">Max / Min</div>
+                                                        <div className="text-sm font-bold flex gap-2 justify-end">
+                                                            <span className="text-cyan-400">₹{(Math.max(...(analyticsData.market.price_range || [0])) * 10).toLocaleString()}</span>
+                                                            <span className="text-gray-600">|</span>
+                                                            <span className="text-rose-400">₹{(Math.min(...(analyticsData.market.price_range || [0])) * 10).toLocaleString()}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                    </div>
+
+                                    {/* Detailed Statistical Overview */}
+                                    <div className="bg-slate-700/30 p-6 rounded-2xl border border-slate-600">
+                                        <h3 className="text-xl font-bold text-cyan-400 mb-6 flex items-center gap-2">
+                                            📊 Detailed Statistical Overview
+                                        </h3>
+                                        <div className="overflow-hidden rounded-xl border border-slate-600 bg-slate-800/30">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="bg-slate-800/80 text-gray-400 uppercase text-[10px] tracking-widest font-bold">
+                                                        <th className="p-4 text-left">Metric</th>
+                                                        <th className="p-4 text-center">Average (Mean)</th>
+                                                        <th className="p-4 text-center">Maximum (Peak)</th>
+                                                        <th className="p-4 text-center">Minimum (Base)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-700/50">
+                                                    <tr className="hover:bg-slate-700/30 transition">
+                                                        <td className="p-4 font-bold text-emerald-300">🌾 Crop Yield (T/Ha)</td>
+                                                        <td className="p-4 text-center text-white">{(analyticsData.yield.avg || 0).toFixed(2)}</td>
+                                                        <td className="p-4 text-center text-cyan-300">{(analyticsData.yield.max || 0).toFixed(2)}</td>
+                                                        <td className="p-4 text-center text-rose-300">{(analyticsData.yield.min || 0).toFixed(2)}</td>
+                                                    </tr>
+                                                    <tr className="hover:bg-slate-700/30 transition">
+                                                        <td className="p-4 font-bold text-emerald-300">💰 Market Price (Rs/Q)</td>
+                                                        <td className="p-4 text-center text-white">₹{(analyticsData.market.avg_price || 0).toLocaleString()}</td>
+                                                        <td className="p-4 text-center text-cyan-300">₹{(Math.max(...(analyticsData.market.price_range || [0]))).toLocaleString()}</td>
+                                                        <td className="p-4 text-center text-rose-300">₹{(Math.min(...(analyticsData.market.price_range || [0]))).toLocaleString()}</td>
+                                                    </tr>
+                                                    <tr className="hover:bg-slate-700/30 transition border-t-2 border-slate-700/50">
+                                                        <td className="p-4 font-bold text-emerald-300">🏭 Price Per Tonne</td>
+                                                        <td className="p-4 text-center text-white">₹{(analyticsData.market.price_tonne || 0).toLocaleString()}</td>
+                                                        <td className="p-4 text-center text-cyan-300">₹{(Math.max(...(analyticsData.market.price_range || [0])) * 10).toLocaleString()}</td>
+                                                        <td className="p-4 text-center text-rose-300">₹{(Math.min(...(analyticsData.market.price_range || [0])) * 10).toLocaleString()}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+                                                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">📉 Price Volatility (SD)</div>
+                                                <div className="text-lg font-bold text-orange-300">₹{(analyticsData.market.price_std || 0).toFixed(2)} / Q</div>
+                                            </div>
+                                            <div className="bg-slate-800/40 p-3 rounded-lg border border-slate-700/50">
+                                                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">📦 Total Data Points</div>
+                                                <div className="text-lg font-bold text-blue-300">{(analyticsData.market.total_records || 0)} Historical Records</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Markets & Districts Section */}
+                                    <div className="bg-slate-700/30 p-5 rounded-xl border border-slate-600">
+                                        <h3 className="text-xl font-bold text-cyan-400 mb-4">📍 Markets & Districts</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {Object.entries(analyticsData.market.districts_markets || {}).slice(0, 6).map(([district, markets], i) => (
+                                                <div key={i} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700">
+                                                    <h4 className="font-bold text-emerald-300 border-b border-slate-700 pb-1 mb-2">{district}</h4>
+                                                    <div className="space-y-1">
+                                                        {markets.slice(0, 3).map((m, j) => (
+                                                            <div key={j} className="flex justify-between text-sm">
+                                                                <span className="text-gray-400">{m.market}</span>
+                                                                <span className="text-cyan-300 font-semibold">₹{m.avg_price?.toFixed(0)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Yield by District Table */}
+                                    {analyticsData.yield && analyticsData.yield.by_district && analyticsData.yield.by_district.length > 0 && (
+                                        <div className="bg-slate-700/30 p-5 rounded-xl border border-slate-600">
+                                            <h3 className="text-xl font-bold text-cyan-400 mb-4">🌾 Yield by District</h3>
+                                            <div className="overflow-x-auto rounded-lg border border-slate-700">
+                                                <table className="w-full text-sm">
+                                                    <thead className="bg-slate-800">
+                                                        <tr>
+                                                            <th className="p-3 text-left text-gray-400">District</th>
+                                                            <th className="p-3 text-right text-gray-400">Avg Yield</th>
+                                                            <th className="p-3 text-right text-gray-400">Max Yield</th>
+                                                            <th className="p-3 text-right text-gray-400">Min Yield</th>
+                                                            <th className="p-3 text-right text-gray-400">Production</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-700">
+                                                        {analyticsData.yield.by_district.slice(0, 8).map((d, i) => (
+                                                            <tr key={i} className="hover:bg-slate-800/50 transition">
+                                                                <td className="p-3 font-semibold text-emerald-300">{d.district}</td>
+                                                                <td className="p-3 text-right text-cyan-300 font-bold">{d.avg_yield} T/Ha</td>
+                                                                <td className="p-3 text-right">{d.max_yield} T/Ha</td>
+                                                                <td className="p-3 text-right">{d.min_yield} T/Ha</td>
+                                                                <td className="p-3 text-right text-gray-300">{d.total_production?.toLocaleString()} T</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Historical Trend Chart */}
+                                    {analyticsData.price_history && analyticsData.price_history.chart && analyticsData.price_history.chart.length > 0 && (
+                                        <div className="bg-slate-700/30 p-5 rounded-xl border border-slate-600">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="text-xl font-bold text-cyan-400">📈 Historical Price Trend</h3>
+                                                <div className="text-xs text-gray-400 bg-slate-800 px-2 py-1 rounded">
+                                                    Range: ₹{Math.min(...analyticsData.price_history.chart.map(p => p.min)).toLocaleString()} - ₹{Math.max(...analyticsData.price_history.chart.map(p => p.max)).toLocaleString()} | Points: {analyticsData.price_history.chart.length}
+                                                </div>
+                                            </div>
+                                            <div className="h-72 relative">
+                                                <canvas id="priceChart"></canvas>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Bottom Summary Stats */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+                                        <div className="bg-gradient-to-br from-emerald-600/20 to-emerald-900/20 p-4 rounded-xl border border-emerald-500/30 flex flex-col items-center">
+                                            <div className="text-2xl font-bold text-emerald-400">₹{analyticsData.market.avg_price?.toLocaleString()}</div>
+                                            <div className="text-xs uppercase tracking-wider text-gray-400 mt-1">Avg Price (Rs/Q)</div>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-cyan-600/20 to-cyan-900/20 p-4 rounded-xl border border-cyan-500/30 flex flex-col items-center">
+                                            <div className="text-2xl font-bold text-cyan-400">{Object.keys(analyticsData.market.districts_markets || {}).length}</div>
+                                            <div className="text-xs uppercase tracking-wider text-gray-400 mt-1">Districts</div>
+                                        </div>
+                                        <div className="bg-gradient-to-br from-blue-600/20 to-blue-900/20 p-4 rounded-xl border border-blue-500/30 flex flex-col items-center">
+                                            <div className="text-2xl font-bold text-blue-400">{analyticsData.yield.by_district?.length || 0}</div>
+                                            <div className="text-xs uppercase tracking-wider text-gray-400 mt-1">Yield Districts</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ANALYTICS PAGE
+        function AnalyticsPage() {
+            const [activeTab, setActiveTab] = useState('predictive');
+            const [data, setData] = useState([]);
+            const [isPageLoading, setIsPageLoading] = useState(true);
+
+            useEffect(() => {
+                const endpoints = {
+                    predictive: '/predictive_analytics',
+                    seasonal: '/seasonal_analytics'
+                };
+
+                setIsPageLoading(true);
+                fetch(endpoints[activeTab])
+                    .then(res => res.json())
+                    .then(result => {
+                        setData(result.data || []);
+                        setIsPageLoading(false);
+                    })
+                    .catch(err => {
+                        console.error('Error:', err);
+                        setIsPageLoading(false);
+                    });
+            }, [activeTab]);
+
+            return (
+                <div className="p-8 max-w-7xl mx-auto">
+                    <div className="mb-6">
+                        <h2 className="text-3xl font-bold text-emerald-400 mb-4">📊 Analytics Dashboard</h2>
+                        <div className="flex gap-2 flex-wrap">
+                            {[
+                                { id: 'predictive', label: '📈 Price Forecast' },
+                                { id: 'seasonal', label: '🌾 Seasonal' }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`px-4 py-2 rounded-lg font-semibold transition ${activeTab === tab.id
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                                        }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {!isPageLoading && data.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+
+                            {/* Market Volume Highlight */}
+                            <div className="bg-slate-800/80 p-6 rounded-2xl border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.1)] backdrop-blur-sm relative overflow-hidden group hover:border-blue-500/50 transition-all">
+                                <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                                    <span className="text-4xl">🚢</span>
+                                </div>
+                                <div className="text-gray-400 text-xs uppercase font-bold mb-2 tracking-widest">📦 Market Volume</div>
+                                <div className="text-2xl font-bold text-blue-400">
+                                    {(data.reduce((acc, curr) => acc + (curr.total_arrivals || 0), 0) / 1000).toFixed(1)}K <span className="text-xs text-gray-500 uppercase">Tonnes</span>
+                                </div>
+                                <div className="text-lg font-bold text-white mt-1">
+                                    {data.length} <span className="text-xs text-gray-500">Active Commodities</span>
+                                </div>
+                                <div className="text-xs text-blue-500/80 mt-2 flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+                                    Live Supply Data
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isPageLoading ? (
+                        <div className="text-center py-12 text-gray-400">📊 Loading analytics...</div>
+                    ) : (
+                        <div className="bg-slate-800 rounded-xl overflow-hidden border border-slate-700">
+                            {activeTab === 'predictive' && <PredictiveTable data={data} />}
+                            {activeTab === 'seasonal' && <SeasonalTable data={data} />}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+
+        function PredictiveTable({ data }) {
+            return (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-gray-200">
+                        <thead className="bg-slate-700 sticky top-0">
+                            <tr>
+                                <th className="p-3 text-left">Crop</th>
+                                <th className="p-3 text-right">Current Price</th>
+                                <th className="p-3 text-right">7-Day Forecast</th>
+                                <th className="p-3 text-right">30-Day Forecast</th>
+                                <th className="p-3 text-right">Change (7d)</th>
+                                <th className="p-3 text-right">Change (30d)</th>
+                                <th className="p-3 text-center">Trend</th>
+                                <th className="p-3 text-left">Alert</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map((item, i) => (
+                                <tr key={i} className="border-t border-slate-700 hover:bg-slate-700 transition">
+                                    <td className="p-3 font-semibold">{item.crop}</td>
+                                    <td className="p-3 text-right text-emerald-300">₹{item.current_price?.toLocaleString()}</td>
+                                    <td className="p-3 text-right">₹{item.forecast_7d?.toLocaleString()}</td>
+                                    <td className="p-3 text-right text-cyan-300 font-bold">₹{item.forecast_30d?.toLocaleString()}</td>
+                                    <td className="p-3 text-right" style={{ color: item.price_change_7d > 0 ? '#51cf66' : '#ff6b6b' }}>
+                                        {item.price_change_7d?.toFixed(2)}%
+                                    </td>
+                                    <td className="p-3 text-right" style={{ color: item.price_change_30d > 0 ? '#51cf66' : '#ff6b6b' }}>
+                                        {item.price_change_30d?.toFixed(2)}%
+                                    </td>
+                                    <td className="p-3 text-center font-bold text-yellow-300">{item.trend}</td>
+                                    <td className="p-3 text-left">{item.alert}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        }
+        function SeasonalTable({ data }) {
+            return (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-gray-200">
+                        <thead className="bg-slate-700 sticky top-0">
+                            <tr>
+                                <th className="p-3 text-left">Crop</th>
+                                <th className="p-3 text-right">Avg Annual Price</th>
+                                <th className="p-3 text-left">Best Sell Month</th>
+                                <th className="p-3 text-left">Best Sow Month</th>
+                                <th className="p-3 text-right">Variation %</th>
+                                <th className="p-3 text-right">Peak Price</th>
+                                <th className="p-3 text-right">Low Price</th>
+                                <th className="p-3 text-left">Seasonality</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.map((item, i) => (
+                                <tr key={i} className="border-t border-slate-700 hover:bg-slate-700 transition">
+                                    <td className="p-3 font-semibold">{item.crop}</td>
+                                    <td className="p-3 text-right text-emerald-300">₹{item.avg_annual_price?.toLocaleString()}</td>
+                                    <td className="p-3 text-left text-cyan-300 font-semibold">{item.best_sell_month}</td>
+                                    <td className="p-3 text-left text-yellow-300 font-semibold">{item.best_sow_month}</td>
+                                    <td className="p-3 text-right text-blue-300 font-bold">{item.seasonal_variation?.toFixed(2)}%</td>
+                                    <td className="p-3 text-right text-emerald-400 font-bold">₹{item.peak_price?.toLocaleString()}</td>
+                                    <td className="p-3 text-right text-red-400">₹{item.low_price?.toLocaleString()}</td>
+                                    <td className="p-3 text-left font-bold">
+                                        <span style={{ color: item.has_seasonality?.includes('Yes') ? '#ffd93d' : '#51cf66' }}>
+                                            {item.has_seasonality}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            );
+        }
+
+        // MARKET PAGE
+        function MarketPage() {
+            const [cropsData, setCropsData] = useState([]);
+            const [isMarketLoading, setIsMarketLoading] = useState(true);
+            const [sortBy, setSortBy] = useState('price');
+            const [selectedCrop, setSelectedCrop] = useState(null);
+            const [cropDetails, setCropDetails] = useState(null);
+            const [detailsLoading, setDetailsLoading] = useState(false);
+            const marketChartRef = useRef(null);
+
+            useEffect(() => {
+                if (cropDetails && cropDetails.price_history && cropDetails.price_history.chart) {
+                    const timer = setTimeout(() => {
+                        const chartData = cropDetails.price_history.chart;
+                        if (chartData.length === 0) return;
+
+                        const canvas = document.getElementById('marketPriceChart');
+                        if (!canvas) return;
+
+                        if (marketChartRef.current) {
+                            marketChartRef.current.destroy();
+                        }
+
+                        const ctx = canvas.getContext('2d');
+                        marketChartRef.current = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: chartData.map(p => p.date),
+                                datasets: [{
+                                    label: 'Market Price (Rs/Quintal)',
+                                    data: chartData.map(p => p.price),
+                                    borderColor: '#06b6d4',
+                                    backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                                    borderWidth: 2,
+                                    fill: true,
+                                    tension: 0.3
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    y: {
+                                        grid: { color: '#334155' },
+                                        ticks: {
+                                            color: '#94a3b8',
+                                            callback: (value) => '₹' + value.toLocaleString()
+                                        }
+                                    },
+                                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                                },
+                                plugins: {
+                                    legend: { labels: { color: '#e2e8f0' } },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: (context) => `Price: ₹${context.raw.toLocaleString()}`
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }, 200);
+                    return () => clearTimeout(timer);
+                }
+            }, [cropDetails]);
+
+            useEffect(() => {
+                fetch('/all_crops_analytics')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.crops) setCropsData(data.crops);
+                        setIsMarketLoading(false);
+                    })
+                    .catch(err => {
+                        console.error('Error:', err);
+                        setIsMarketLoading(false);
+                    });
+            }, []);
+
+            const sorted = [...cropsData].sort((a, b) => {
+                if (sortBy === 'price') return b.market.avg_price - a.market.avg_price;
+                if (sortBy === 'yield') return b.yield.avg_yield - a.yield.avg_yield;
+                return 0;
+            });
+
+            const handleCropClick = async (cropName) => {
+                setSelectedCrop(cropName);
+                setDetailsLoading(true);
+                try {
+                    const response = await fetch('/crop_details_extended', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ crop: cropName })
+                    });
+                    const data = await response.json();
+                    setCropDetails(data);
+                } catch (err) {
+                    console.error('Error:', err);
+                }
+                setDetailsLoading(false);
+            };
+
+            const closeModal = () => {
+                setSelectedCrop(null);
+                setCropDetails(null);
+            };
+
+            return (
+                <div className="p-8 max-w-7xl mx-auto">
+                    <div className="mb-6">
+                        <h2 className="text-3xl font-bold text-emerald-400 mb-4">💹 Market Overview</h2>
+                        <div className="flex gap-2">
+                            {[
+                                { id: 'price', label: 'Sort by Price' },
+                                { id: 'yield', label: 'Sort by Yield' },
+                            ].map(btn => (
+                                <button
+                                    key={btn.id}
+                                    onClick={() => setSortBy(btn.id)}
+                                    className={`px-4 py-2 rounded-lg font-semibold transition ${sortBy === btn.id
+                                        ? 'bg-emerald-600 text-white'
+                                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                                        }`}
+                                >
+                                    {btn.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {isMarketLoading ? (
+                        <div className="text-center py-12 text-gray-400">📊 Loading market data...</div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {sorted.map((crop, i) => (
+                                <div
+                                    key={i}
+                                    onClick={() => handleCropClick(crop.crop)}
+                                    className="bg-slate-800 rounded-xl p-4 border border-slate-700 hover:border-emerald-500 transition cursor-pointer"
+                                >
+                                    <h3 className="text-xl font-bold text-emerald-400 mb-3">{crop.crop}</h3>
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Price:</span>
+                                            <span className="text-emerald-300 font-bold">₹{crop.market.avg_price?.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Yield:</span>
+                                            <span className="text-cyan-300 font-bold">{crop.yield.avg_yield?.toFixed(2)} T/Ha</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Volatility:</span>
+                                            <span className={crop.market.risk_level === 'High' ? 'text-red-400' : crop.market.risk_level === 'Moderate' ? 'text-yellow-400' : 'text-green-400'}>
+                                                {crop.market.risk_level}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Crop Details Modal */}
+                    {selectedCrop && (
+                        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                            <div className="bg-slate-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-slate-600">
+                                <div className="p-6">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h2 className="text-2xl font-bold text-emerald-400">{selectedCrop}</h2>
+                                        <button onClick={closeModal} className="text-gray-400 hover:text-white text-2xl">✕</button>
+                                    </div>
+
+                                    {detailsLoading ? (
+                                        <div className="text-center py-8 text-gray-400">Loading details...</div>
+                                    ) : cropDetails && cropDetails.status === 'success' ? (
+                                        <div className="space-y-6">
+                                            {/* Market Info */}
+                                            <div className="bg-slate-700 rounded-lg p-4">
+                                                <h3 className="text-xl font-bold text-cyan-400 mb-3">📍 Markets & Districts</h3>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {Object.entries(cropDetails.market.districts_markets || {}).slice(0, 6).map(([district, markets], i) => (
+                                                        <div key={i} className="bg-slate-600 rounded p-3">
+                                                            <h4 className="font-bold text-emerald-300">{district}</h4>
+                                                            <div className="text-sm text-gray-300 mt-1">
+                                                                {markets.slice(0, 3).map((m, j) => (
+                                                                    <div key={j} className="flex justify-between">
+                                                                        <span>{m.market}</span>
+                                                                        <span className="text-cyan-300">₹{m.avg_price?.toFixed(0)}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Yield Statistics by District */}
+                                            {cropDetails.yield && cropDetails.yield.by_district && cropDetails.yield.by_district.length > 0 && (
+                                                <div className="bg-slate-700 rounded-lg p-4">
+                                                    <h3 className="text-xl font-bold text-cyan-400 mb-3">🌾 Yield by District</h3>
+                                                    <div className="overflow-x-auto">
+                                                        <table className="w-full text-sm">
+                                                            <thead className="bg-slate-600">
+                                                                <tr>
+                                                                    <th className="p-2 text-left">District</th>
+                                                                    <th className="p-2 text-right">Avg Yield</th>
+                                                                    <th className="p-2 text-right">Max Yield</th>
+                                                                    <th className="p-2 text-right">Min Yield</th>
+                                                                    <th className="p-2 text-right">Production</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {cropDetails.yield.by_district.slice(0, 10).map((d, i) => (
+                                                                    <tr key={i} className="border-t border-slate-600">
+                                                                        <td className="p-2 text-emerald-300">{d.district}</td>
+                                                                        <td className="p-2 text-right text-cyan-300">{d.avg_yield} T/Ha</td>
+                                                                        <td className="p-2 text-right">{d.max_yield} T/Ha</td>
+                                                                        <td className="p-2 text-right">{d.min_yield} T/Ha</td>
+                                                                        <td className="p-2 text-right text-gray-300">{d.total_production?.toLocaleString()} T</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Price Trend Chart */}
+                                            {cropDetails.price_history && cropDetails.price_history.chart && cropDetails.price_history.chart.length > 0 && (
+                                                <div className="bg-slate-700 rounded-lg p-4">
+                                                    <h3 className="text-xl font-bold text-cyan-400 mb-3">📈 Historical Price Trend</h3>
+                                                    <div className="h-64 relative">
+                                                        <canvas id="marketPriceChart"></canvas>
+                                                    </div>
+                                                    <div className="flex justify-between mt-2 text-sm text-gray-400">
+                                                        <span>Price Range: ₹{Math.min(...cropDetails.price_history.chart.map(p => p.min)).toLocaleString()} - ₹{Math.max(...cropDetails.price_history.chart.map(p => p.max)).toLocaleString()}</span>
+                                                        <span>Data Points: {cropDetails.price_history.chart.length}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Summary Stats */}
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                <div className="bg-slate-700 rounded-lg p-3 text-center">
+                                                    <div className="text-2xl font-bold text-emerald-400">₹{cropDetails.market.avg_price?.toLocaleString()}</div>
+                                                    <div className="text-sm text-gray-400">Avg Price (Rs/Q)</div>
+                                                </div>
+                                                <div className="bg-slate-700 rounded-lg p-3 text-center">
+                                                    <div className="text-2xl font-bold text-cyan-400">{Object.keys(cropDetails.market.districts_markets || {}).length}</div>
+                                                    <div className="text-sm text-gray-400">Districts</div>
+                                                </div>
+                                                <div className="bg-slate-700 rounded-lg p-3 text-center">
+                                                    <div className="text-2xl font-bold text-yellow-400">{cropDetails.yield?.total_districts || 0}</div>
+                                                    <div className="text-sm text-gray-400">Yield Districts</div>
+                                                </div>
+                                                <div className="bg-slate-700 rounded-lg p-3 text-center">
+                                                    <div className="text-2xl font-bold text-blue-400">{cropDetails.price_history?.chart?.length || 0}</div>
+                                                    <div className="text-sm text-gray-400">Price Records</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-8 text-red-400">Failed to load crop details</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ABOUT PAGE
+        function AboutPage() {
+            return (
+                <div className="p-8 max-w-4xl mx-auto">
+                    <div className="bg-slate-800 rounded-xl p-8 border border-slate-700">
+                        <h2 className="text-3xl font-bold text-emerald-400 mb-6">About Farmer Mitra</h2>
+                        <div className="space-y-4 text-gray-300">
+                            <p>
+                                <strong className="text-emerald-300">Farmer Mitra</strong> is an AI-powered agricultural intelligence platform designed to help farmers make data-driven decisions about crop cultivation.
+                            </p>
+                            <h3 className="text-xl font-bold text-cyan-400 mt-6">🎯 Key Features</h3>
+                            <ul className="list-disc list-inside space-y-2 ml-2">
+                                <li><strong>Smart Recommendations:</strong> Get crop suggestions based on your soil composition</li>
+                                <li><strong>Price Forecasts:</strong> 7-day and 30-day price predictions for market planning</li>
+                                <li><strong>Seasonal Insights:</strong> Know the best months to sow and sell your crops</li>
+                            </ul>
+                            <h3 className="text-xl font-bold text-cyan-400 mt-6">📊 How It Works</h3>
+                            <p>
+                                Our platform analyzes historical market data, soil parameters, and crop yields to provide actionable insights. Using machine learning models trained on years of agricultural data, we deliver accurate recommendations and forecasts.
+                            </p>
+                            <h3 className="text-xl font-bold text-cyan-400 mt-6">🌾 Supported Regions</h3>
+                            <p>
+                                Currently serving farmers in Manipur with coverage across: Bishnupur, Imphal East, Imphal West, Thoubal, Ukhrul, Churachandpur, Senapati, Tamenglong, and Kakching districts.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Render App
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+
+</html>
+{% endraw %}
